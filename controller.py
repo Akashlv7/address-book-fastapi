@@ -1,5 +1,4 @@
-from urllib import response
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 
 from pydantic import BaseModel
 from typing import Optional
@@ -27,7 +26,7 @@ async def getAllAddresses():
     response = list()
 
     if not addresses_from_db:
-        return "No Addresses found in the Book"
+        raise HTTPException(status_code=404, detail="No Addresses found in the Book")
 
     for each_address in addresses_from_db:
         each_user_address = {
@@ -58,7 +57,7 @@ async def getAddressByname(address_name: str):
                             
         }
         return response_data
-    return "No Data Found for the given address name"
+    raise HTTPException(status_code=404, detail="No Data found for the given address name")
 
 ############################################### GET ADDRESSES WITHIN RANGE ###############################################
 
@@ -70,7 +69,7 @@ async def getAddressWithinRange(range: int, location: str):
     response = list()
 
     if not addresses_from_db:
-        return "No Address found within the range"
+        raise HTTPException(status_code=404, detail="No Address found within the range")
 
     for each_address in addresses_from_db:
         each_user_address = {
@@ -91,29 +90,28 @@ async def addAddress(address: UserAddress):
     """Create/Add address API endpoint
     """
     location = address.location.split(",")
+
     validation_response =  validate_address(location[0], location[1])
-    if validation_response != 1002:
-        return validation_response
+    if validation_response == 1005:
+        raise HTTPException(status_code=405, detail="Enter a Valid location - Latitude is out of range")
+    if validation_response == 1006:
+        raise HTTPException(status_code=406, detail="Enter a Valid location - Longitude is out of range")
+
+    location = address.location.split(",")
 
     try:
-        location = address.location.split(",")
-
-        try:
-            address_table = Address(address.address_name, location[0], location[1])
-            add_response = address_table.add_address()
-        except Exception as err:
-            return str(err)
-    
-        if add_response == 1000:
-            return "Address ID already exists - Please Enter the Unique Address Name"
-
-        if add_response == 1001:
-            return "Address already exists - Same location already present"
-
-        return "User Address added successfully"
-
+        address_table = Address(address.address_name, location[0], location[1])
+        add_response = address_table.add_address()
     except Exception as err:
-        return err
+        return str(err)
+
+    if add_response == 1000:
+        raise HTTPException(status_code=407, detail="Address ID already exists - Please Enter the Unique Address Name")
+
+    if add_response == 1001:
+        raise HTTPException(status_code=408, detail="Address with location already present")
+
+    return "User Address added successfully"
 
 ############################################### UPDATE ADDRESS ###############################################
 
@@ -121,29 +119,29 @@ async def addAddress(address: UserAddress):
 async def updateAddress(address: UserAddress):
     """Update address API endpoint
     """
+    location = address.location.split(",")
+
+    validation_response =  validate_address(location[0], location[1])
+    if validation_response == 1005:
+        raise HTTPException(status_code=405, detail="Enter a Valid location - Latitude is out of range")
+    if validation_response == 1006:
+        raise HTTPException(status_code=406, detail="Enter a Valid location - Longitude is out of range")
+
     try:
-        location = address.location.split(",")
-
-        try:
-            address_table = Address(address.address_name, location[0], location[1])
-            update_response = address_table.update_address()
-            print(update_response)
-        except Exception as err:
-            raise
-
-        if update_response == 1003:
-            return "Address not found"
-
-        if update_response == 1000:
-            return "Address Name not found"
-
-        if update_response == 1001:
-            return "Address already exists - Same location already present"
-
-        return "User Address updated successfully"
-
+        address_table = Address(address.address_name, location[0], location[1])
+        update_response = address_table.update_address()
+        print(update_response)
     except Exception as err:
         return str(err)
+
+
+    if update_response in (1000, 1003):
+        raise HTTPException(status_code=404, detail="No Data found for the given address name")
+        
+    if update_response == 1001:
+        raise HTTPException(status_code=408, detail="Address with location already present")
+
+    return "User Address updated successfully"
     
 ############################################### DELETE ADDRESS ###############################################
 
@@ -151,14 +149,10 @@ async def updateAddress(address: UserAddress):
 async def deleteAddressByName(address_name: str):
     """Delete Address by name API endpoint
     """
-    try:
-        if not Address.delete_address(query_address_name = address_name):
-            return "Address ID does not exist - Please Enter a valid address name"
+    if not Address.delete_address(query_address_name = address_name):
+        raise HTTPException(status_code=404, detail="Enter a valid address name")
 
-        return "Successfully deleted the address"
-
-    except Exception as err:
-        return str(err)
+    return "Successfully deleted the address"
 
 
 #############################################################################################################
@@ -171,14 +165,16 @@ def validate_address(latitude, longitude):
     
     #Latitude Check
     if float(latitude) < -90 or float(latitude) > 90:
+        return 1005
         return "Enter a Valid location - Latitude is out of range"
 
     #Longitude Check
     if float(longitude) < -180 or float(longitude) > 180:
+        return 1006
         return "Enter a Valid location - Longitude is out of range"
 
 
-    return 1002
+    return True
 
 
 
