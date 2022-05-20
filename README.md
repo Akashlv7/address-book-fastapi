@@ -7,7 +7,7 @@ An Address book APIs using Fast API python.
 ## Clone the project
 
 ```
-git clone 
+git clone https://github.com/Akashlv7/address-book-fastapi
 ```
 
 ## Run local
